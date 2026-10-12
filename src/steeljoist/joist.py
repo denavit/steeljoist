@@ -498,7 +498,7 @@ class Joist:
         num_nodes = len(node_info)
         support_info = np.zeros([num_nodes,6])
         support_info[:] = nan
-        if self.top_chord_panel_lengths[0] <= self.support_location:
+        if self.top_chord_panel_lengths[0] < self.support_location:
             support_info[2] = [0, 0, 0, 0, nan, nan]
             support_info[num_top_chord_nodes-1] = [nan, 0, 0, 0, nan, nan]   
         else:
