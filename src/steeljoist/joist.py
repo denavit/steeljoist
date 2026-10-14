@@ -465,16 +465,6 @@ class Joist:
 
         return node_info, expanded_web_index_info, ele_info, uniload_info
 
-    # Total Info
-    def TotalNodeInfo(self):
-        return self.TopNodeInfo() + self.BotNodeInfo() + self.TopChordInfo()[0] + self.BotChordInfo()[0] + self.WebEleInfo()[0]
-
-    def TotalEleInfo(self):
-        return self.TopChordInfo()[2] + self.BotChordInfo()[2] + self.WebEleInfo()[2]
-
-    def TotalUniloadInfo(self):
-        return self.TopChordInfo()[3] + self.BotChordInfo()[3] + self.WebEleInfo()[3]
-
     # Joist Info
     def SectionInfo(self):
         sect_info=[]
@@ -492,17 +482,28 @@ class Joist:
         
         if model_title is None:
             model_title = self.joist_name
+
+        node_info_top, expanded_top_index_info, ele_info_top, uniload_info_top = self.TopChordInfo()
+        node_info_bot, expanded_bot_index_info, ele_info_bot, uniload_info_bot = self.BotChordInfo()
+        node_info_web, expanded_web_index_info, ele_info_web, uniload_info_web = self.WebEleInfo()
         
+        # Model information
+        node_info = self.TopNodeInfo() + self.BotNodeInfo() + node_info_top + node_info_bot + node_info_web
+        elem_info = ele_info_top + ele_info_bot + ele_info_web
+        uniload_info = uniload_info_top + uniload_info_bot + uniload_info_web
+        sect_info, sect_name = self.SectionInfo()
+        num_top_chord_nodes = len(self.top_chord_panel_point_x_coords())
+
         # Support Information
-        num_nodes = len(self.TotalNodeInfo())
+        num_nodes = len(node_info)
         support_info = np.zeros([num_nodes,6])
         support_info[:] = nan
-        if self.top_chord_panel_lengths[0] <= self.support_location:
+        if self.top_chord_panel_lengths[0] < self.support_location:
             support_info[2] = [0, 0, 0, 0, nan, nan]
-            support_info[len(self.top_chord_panel_point_x_coords())-1] = [nan, 0, 0, 0, nan, nan]   
+            support_info[num_top_chord_nodes-1] = [nan, 0, 0, 0, nan, nan]   
         else:
             support_info[1] = [0, 0, 0, 0, nan, nan]
-            support_info[len(self.top_chord_panel_point_x_coords())-2] = [nan, 0, 0, 0, nan, nan]
+            support_info[num_top_chord_nodes-2] = [nan, 0, 0, 0, nan, nan]
         
         # Material Information
         mat_info = [[self.E, self.v, self.top_chord_Fy, self.unit_weight],
@@ -520,12 +521,12 @@ class Joist:
 
         # Save Joist        
         save_MASTAN2(model_title=model_title, 
-                     node_info=np.array(self.TotalNodeInfo()), 
-                     elem_info=self.TotalEleInfo(),
+                     node_info=node_info, 
+                     elem_info=elem_info,
                      support_info=support_info, 
-                     uniload_info=self.TotalUniloadInfo(), 
-                     sect_info=self.SectionInfo()[0],
-                     sect_name=self.SectionInfo()[1], 
+                     uniload_info=uniload_info, 
+                     sect_info=sect_info,
+                     sect_name=sect_name, 
                      mat_info=mat_info,
                      mat_name=mat_name)
 
