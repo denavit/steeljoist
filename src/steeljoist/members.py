@@ -471,7 +471,7 @@ class ColdFormedChannel:
         return mastan2_sect_info(
             A=self.A, Izz=self.Ix, Iyy=self.Iy,
             J=self.J, Cw=self.Cw,
-            Zzz=self.Zx, Zyy=self.Zy, Ayy=self.Asy, Azz=self.Asz)
+            Zzz=self.Zx, Zyy=self.Zy, Ayy=self.Asy, Azz=self.Asx)
 
     def in_plane_depth(self):
         return self.h
