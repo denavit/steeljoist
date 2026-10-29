@@ -1,5 +1,5 @@
 import numpy as np
-from math import nan, inf, pi, ceil, dist
+from math import nan, inf, pi, ceil, sqrt
 from libdenavit import save_MASTAN2
 from matplotlib import pyplot as plt
 
@@ -180,7 +180,7 @@ class Joist:
             elif self.support_location == self.top_chord_panel_lengths[0]:
                 pass
             
-            elif (self.support_location > self.top_chord_panel_lengths[0]) and (self.support_location < self.top_chord_panel_lengths[0]+self.top_chord_panel_lengths[1]):
+            elif self.support_location < self.top_chord_panel_lengths[0]+self.top_chord_panel_lengths[1]:
                 x_coords.insert(2, self.support_location)
                 x_coords.insert(-2, self.span-self.support_location)
             
@@ -301,209 +301,215 @@ class Joist:
             raise ValueError(f'Unknown truss_type: {self.truss_type}')
         return Lss
 
-    # MASTAN2 Functions
-    def TopNodeInfo(self):
-        node_info = []
+    def build_joist_geometry(self):
+        
+        de = self.effective_depth()       
         tc_x_coords = self.top_chord_panel_point_x_coords()
+        bc_x_coords = self.bottom_chord_panel_point_x_coords()        
+
+        # Define Joints (i.e., panel points, chord ends, and supports)
+        joint_coords = []
         for x_coord in tc_x_coords:
-            node_info.append([x_coord, 0, 0])
-        return node_info
-    
-    def TopIndexInfo(self):
-        return list(range(len(self.TopNodeInfo())+1))[1:]
-
-    def BotNodeInfo(self):
-        node_info = []
-        de = self.effective_depth()       
-        bc_x_coords = self.bottom_chord_panel_point_x_coords()
+            joint_coords.append([x_coord, 0, 0])
         for x_coord in bc_x_coords:
-            node_info.append([x_coord, -de, 0])
-        return node_info
-    
-    def BotIndexInfo(self):
-        return list(range(len(self.bottom_chord_panel_point_x_coords())+len(self.TopIndexInfo())+1))[1+len(self.TopIndexInfo()):]
+            joint_coords.append([x_coord, -de, 0])
 
-    def TopChordInfo(self):
-        # node_info returns only the intermediate nodes defined by the maximum panel point length
-        node_info = []
-        ele_info = []
-        uniload_info = []
-
-        tc_x_coords = self.top_chord_panel_point_x_coords()
-        curMax = max(self.BotIndexInfo())
-        expanded_top_index_info = self.TopIndexInfo()
-        secIndex = self.SectionInfo()[1].index(self.top_chord_section) + 1
-
-        if self.maximum_top_chord_element_length != 0 and self.maximum_top_chord_element_length != None:
-            for i, j in enumerate(tc_x_coords[:-1]):
-                diff = tc_x_coords[i+1] - tc_x_coords[i]
-                fac = ceil(diff/self.maximum_top_chord_element_length)
-                if fac != 1:
-                    for k in list(range(fac))[1:]:
-                        node_info.append([j + (k*diff/fac), 0, 0])
-                        expanded_top_index_info.insert(expanded_top_index_info.index(i+1)+k, curMax + k)
-                    curMax = max(expanded_top_index_info)
-        for i in range(len(expanded_top_index_info[:-1])):
-            ele_info.append([expanded_top_index_info[i], expanded_top_index_info[i+1], secIndex, 1, 0, 0, 0, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
-            uniload_info.append([0, -self.uniform_load, self.LateralLoad(self.top_chord_section)])
-        return node_info, expanded_top_index_info, ele_info, uniload_info
-    
-    def BotChordInfo(self):
-        node_info = []
-        ele_info = []
-        uniload_info = []
-
-        bc_x_coords = self.bottom_chord_panel_point_x_coords()
-        curMax = max(self.TopChordInfo()[1])
-        expanded_bot_index_info = self.BotIndexInfo()
-        secIndex = self.SectionInfo()[1].index(self.bottom_chord_section) + 1    
-
-        de = self.effective_depth()       
-        if self.maximum_bottom_chord_element_length != 0 and self.maximum_bottom_chord_element_length != None:
-            for i, j in enumerate(bc_x_coords[:-1]):
-                diff = bc_x_coords[i+1] - bc_x_coords[i]
-                fac = ceil(diff/self.maximum_bottom_chord_element_length)
-                if fac != 1:
-                    for k in list(range(fac))[1:]:
-                        node_info.append([j + (k*diff/fac), -de, 0])
-                        expanded_bot_index_info.insert(expanded_bot_index_info.index(i+1+max(self.TopIndexInfo()))+k, curMax + k)
-                    curMax = max(expanded_bot_index_info)
-        for i in range(len(expanded_bot_index_info[:-1])):
-            ele_info.append([expanded_bot_index_info[i], expanded_bot_index_info[i+1], secIndex, 2, 0, 0, 0, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
-            uniload_info.append([0, 0, self.LateralLoad(self.bottom_chord_section)])
-        return node_info, expanded_bot_index_info, ele_info, uniload_info
-
-    def WebMemberIndexInfo(self):
+        joist_indicies = list(range(1, len(joint_coords) + 1))
+        
+        number_of_top_chord_joints = len(tc_x_coords)
+        number_of_bottom_chord_joints = len(bc_x_coords)
+        
+        if self.support_location < self.top_chord_panel_lengths[0]:
+            left_support_joint_index = 1
+            right_support_joint_index = number_of_top_chord_joints-1
+            top_chord_panel_point_indicies = list(range(3,number_of_top_chord_joints-1))
+        elif self.support_location == self.top_chord_panel_lengths[0]:
+            left_support_joint_index = 1
+            right_support_joint_index = number_of_top_chord_joints-1
+            top_chord_panel_point_indicies = list(range(2,number_of_top_chord_joints))
+        elif self.support_location < self.top_chord_panel_lengths[0]+self.top_chord_panel_lengths[1]:
+            left_support_joint_index = 2
+            right_support_joint_index = number_of_top_chord_joints-2            
+            top_chord_panel_point_indicies = [i for i in range(2, number_of_top_chord_joints) if i not in (3, number_of_top_chord_joints - 2)]
+        else: 
+            raise ValueError('Invalid combination of support_location and top_chord_panel_lengths')
+            
+        # Web Member Connectivity
+        web_connectivity = []
+        if self.bottom_chord_extension_length > 0:
+            bc_start = number_of_top_chord_joints + 2
+            bc_end = number_of_top_chord_joints + number_of_bottom_chord_joints - 1
+        else:
+            bc_start = number_of_top_chord_joints + 1
+            bc_end = number_of_top_chord_joints + number_of_bottom_chord_joints
+        
         if self.truss_type.lower() == 'warren':
-            if self.is_support_at_panel_point():
-                topNode = self.TopIndexInfo()[:-1]
-            else:
-                topNode = self.TopIndexInfo()[1:-2]
-
-            if self.bottom_chord_extension_length != 0:
-                botNode = self.BotIndexInfo()[1:-1]
-            else:
-                botNode = self.BotIndexInfo()
-
-            webNodeIndices = [[topNode[1], botNode[0]]]
-            topNode = topNode[2:]
-            for i in botNode:
-                for j in range(2):
-                    webNodeIndices.append([topNode[j], i])
-                topNode = topNode[1:]
-            webNodeIndices.append([topNode[-1], botNode[-1]])
-
+            tc_i = 0
+            for bc_i in range(bc_start,bc_end+1):
+                if (bc_i == bc_start) or (bc_i == bc_end):
+                    web_connectivity.append([top_chord_panel_point_indicies[tc_i], bc_i])
+                    web_connectivity.append([top_chord_panel_point_indicies[tc_i+1], bc_i])
+                    web_connectivity.append([top_chord_panel_point_indicies[tc_i+2], bc_i])
+                    tc_i += 2
+                else:
+                    web_connectivity.append([top_chord_panel_point_indicies[tc_i], bc_i])
+                    web_connectivity.append([top_chord_panel_point_indicies[tc_i+1], bc_i])
+                    tc_i += 1
+                    
         elif self.truss_type.lower() == 'modifiedwarren':
-            if self.is_support_at_panel_point():
-                topNode = self.TopIndexInfo()[1:-1]
-            else:
-                topNode = self.TopIndexInfo()[2:-2]
-
-            if self.bottom_chord_extension_length != 0:
-                botNode = self.BotIndexInfo()[1:-1]
-            else:
-                botNode = self.BotIndexInfo()
-            topNode = topNode[:]
-            webNodeIndices = []
-            for i in botNode:
-                for j in range(3):
-                    webNodeIndices.append([topNode[j], i])
-                topNode = topNode[2:]
+            tc_i = 0
+            for bc_i in range(bc_start,bc_end+1):
+                web_connectivity.append([top_chord_panel_point_indicies[tc_i], bc_i])
+                web_connectivity.append([top_chord_panel_point_indicies[tc_i+1], bc_i])
+                web_connectivity.append([top_chord_panel_point_indicies[tc_i+2], bc_i])
+                tc_i += 2
 
         else:
             raise ValueError(f'Unknown truss_type: {self.truss_type}')
             
-        return webNodeIndices
+        # Store Results
+        self._joint_coords = joint_coords
+        self._web_connectivity = web_connectivity
+        self._number_of_top_chord_joints = number_of_top_chord_joints
+        self._number_of_bottom_chord_joints = number_of_bottom_chord_joints
+        self._left_support_joint_index = left_support_joint_index
+        self._right_support_joint_index = right_support_joint_index
 
-    def WebEleInfo(self):
-        node_info = []
-        ele_info = []
-        uniload_info = []
-        expanded_web_index_info = [] # @todo: make modify existing copy self.WebMemberIndexInfo
 
-        if self.pin_web_members:
-            pinned = 1
-        else:
-            pinned = 0
-
-        curMax = max(self.BotChordInfo()[1])
-        x_coords = self.top_chord_panel_point_x_coords() + self.bottom_chord_panel_point_x_coords()
+    def saveMASTAN2(self, model_title=None):
+        self.build_joist_geometry()
         de = self.effective_depth()
-
-        if self.maximum_web_member_element_length != 0 and self.maximum_web_member_element_length != None:
-            for i, j in enumerate(self.WebMemberIndexInfo()):
-                diff = dist([x_coords[j[1]-1], 0], [x_coords[j[0]-1], -de])
-                fac = ceil(diff/self.maximum_web_member_element_length)
-                if fac != 1:
-                    n = j.copy()
-                    x0 = x_coords[j[0]-1]
-                    xf = x_coords[j[1]-1]
-                    for k in list(range(fac))[1:]:
-                        node_info.append([x0 + k*(xf-x0)/fac, -k*de/fac, 0])
-                        n.insert(k, curMax+k)
-                    expanded_web_index_info.append(n)
-                    curMax = max(n)
-        else:
-            expanded_web_index_info = self.WebMemberIndexInfo()
-        
-        web_section_list = self.web_sections_all()
-        for i, j in enumerate(expanded_web_index_info):
-            sec = web_section_list[i]
-            secIndex = self.SectionInfo()[1].index(sec) + 1
-            if x_coords[j[-1]-1] > x_coords[j[0]-1]:
-                beta = pi
-            else:
-                beta = 0
-            for k, l in enumerate(j[:-1]):
-                if k==0:
-                    ele_info.append([j[k+1], l, secIndex, 3, beta, 0, pinned, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
-                elif k==len(j)-2:
-                    ele_info.append([j[k+1], l, secIndex, 3, beta, pinned, 0, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
-                else:
-                    ele_info.append([j[k+1], l, secIndex, 3, beta, 0, 0, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])                                      
-                uniload_info.append([0, 0, self.LateralLoad(sec)])
-
-        return node_info, expanded_web_index_info, ele_info, uniload_info
-
-    # Joist Info
-    def SectionInfo(self):
+        node_info = self._joint_coords
+               
+        # Section Information
         sect_info=[]
         sect_name=[]
         for name, section in self.sections.items():
             sect_info.append(section.MASTAN2_sect_info())
             sect_name.append(name)
-        return sect_info, sect_name
-   
-    def LateralLoad(self, sec):
-        h = self.sections[sec].in_plane_depth()
-        return self.lateral_pressure*h
 
-    def saveMASTAN2(self, model_title=None):
+        # Initilize Element and Uniform Load Arrays
+        elem_info = []
+        uniload_info = []
         
-        if model_title is None:
-            model_title = self.joist_name
+        # Define Top Chord Elements
+        tc_x_coords = self.top_chord_panel_point_x_coords()
+        section_index = sect_name.index(self.top_chord_section) + 1
+        lateral_load = self.lateral_pressure*self.sections[self.top_chord_section].in_plane_depth()
 
-        node_info_top, expanded_top_index_info, ele_info_top, uniload_info_top = self.TopChordInfo()
-        node_info_bot, expanded_bot_index_info, ele_info_bot, uniload_info_bot = self.BotChordInfo()
-        node_info_web, expanded_web_index_info, ele_info_web, uniload_info_web = self.WebEleInfo()
+        for i in range(self._number_of_top_chord_joints-1):
+            
+            # Determine number of elements in panel
+            if self.maximum_top_chord_element_length == None or self.maximum_top_chord_element_length == 0:
+                num_elements = 1
+            else:
+                panel_length = tc_x_coords[i+1] - tc_x_coords[i]
+                num_elements = ceil(panel_length/self.maximum_top_chord_element_length)
+            
+            # Define elements (and added nodes if necessary)
+            i_node = i+1
+            for j in range(num_elements):
+                
+                if j == num_elements-1:
+                    j_node = i+2
+                else:
+                    node_info.append([tc_x_coords[i] + (j+1)/num_elements*panel_length, 0, 0])
+                    j_node = len(node_info)
+                
+                elem_info.append([i_node, j_node, section_index, 1, 0, 0, 0, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
+                uniload_info.append([0, -self.uniform_load, lateral_load])    
+                
+                i_node = j_node                
         
-        # Model information
-        node_info = self.TopNodeInfo() + self.BotNodeInfo() + node_info_top + node_info_bot + node_info_web
-        elem_info = ele_info_top + ele_info_bot + ele_info_web
-        uniload_info = uniload_info_top + uniload_info_bot + uniload_info_web
-        sect_info, sect_name = self.SectionInfo()
-        num_top_chord_nodes = len(self.top_chord_panel_point_x_coords())
+        # Define Bottom Chord Elements
+        bc_x_coords = self.bottom_chord_panel_point_x_coords()
+        section_index = sect_name.index(self.bottom_chord_section) + 1    
+        lateral_load = self.lateral_pressure*self.sections[self.bottom_chord_section].in_plane_depth()
+
+        for i in range(self._number_of_bottom_chord_joints-1):
+            
+            # Determine number of elements in panel
+            if self.maximum_bottom_chord_element_length == None or self.maximum_bottom_chord_element_length == 0:
+                num_elements = 1
+            else:
+                panel_length = bc_x_coords[i+1] - bc_x_coords[i]
+                num_elements = ceil(panel_length/self.maximum_bottom_chord_element_length)
+            
+            # Define elements (and added nodes if necessary)
+            i_node = self._number_of_top_chord_joints+i+1
+            for j in range(num_elements):
+                
+                if j == num_elements-1:
+                    j_node = self._number_of_top_chord_joints+i+2
+                else:
+                    node_info.append([bc_x_coords[i] + (j+1)/num_elements*panel_length, -de, 0])
+                    j_node = len(node_info)
+                
+                elem_info.append([i_node, j_node, section_index, 2, 0, 0, 0, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
+                uniload_info.append([0, 0, lateral_load])    
+                
+                i_node = j_node  
+
+        # Define Web Elements
+        if self.pin_web_members:
+            pinned = 1
+        else:
+            pinned = 0
+        web_section_list = self.web_sections_all()
+
+        for i, web_joints in enumerate(self._web_connectivity):
+            ix = self._joint_coords[web_joints[0]-1][0]
+            iy = self._joint_coords[web_joints[0]-1][1]
+            jx = self._joint_coords[web_joints[1]-1][0]
+            jy = self._joint_coords[web_joints[1]-1][1]
+            
+            if ix > jx:
+                beta = pi
+            else:
+                beta = 0
+            section_index = sect_name.index(web_section_list[i]) + 1    
+            lateral_load = self.lateral_pressure*self.sections[web_section_list[i]].in_plane_depth()
+
+            # Determine number of elements in panel
+            if self.maximum_web_member_element_length == None or self.maximum_web_member_element_length == 0:
+                num_elements = 1
+            else:
+                web_length = sqrt((jx-ix)**2 + (jy-iy)**2)
+                num_elements = ceil(web_length/self.maximum_web_member_element_length)
+                
+            # Define elements (and added nodes if necessary)
+            if num_elements == 1:
+                elem_info.append([web_joints[0], web_joints[1], section_index, 3, beta, pinned, pinned, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
+                uniload_info.append([0, 0, lateral_load])    
+
+            else:
+            
+                i_node = web_joints[0]
+                for j in range(num_elements):
+                    
+                    if j == num_elements-1:
+                        j_node = web_joints[1]
+                    else:
+                        node_info.append([ix + (j+1)/num_elements*(jx-ix), iy + (j+1)/num_elements*(jy-iy), 0])
+                        j_node = len(node_info)
+                    
+                    if j == 0:
+                        elem_info.append([i_node, j_node, section_index, 3, beta, 0, pinned, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
+                    elif j == num_elements-1:
+                        elem_info.append([i_node, j_node, section_index, 3, beta, pinned, 0, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
+                    else:
+                        elem_info.append([i_node, j_node, section_index, 3, beta, 0, 0, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
+
+                    uniload_info.append([0, 0, lateral_load])    
+                    
+                    i_node = j_node 
 
         # Support Information
         num_nodes = len(node_info)
         support_info = np.zeros([num_nodes,6])
         support_info[:] = nan
-        if self.top_chord_panel_lengths[0] < self.support_location:
-            support_info[2] = [0, 0, 0, 0, nan, nan]
-            support_info[num_top_chord_nodes-1] = [nan, 0, 0, 0, nan, nan]   
-        else:
-            support_info[1] = [0, 0, 0, 0, nan, nan]
-            support_info[num_top_chord_nodes-2] = [nan, 0, 0, 0, nan, nan]
+        support_info[self._left_support_joint_index] = [0, 0, 0, 0, nan, nan]
+        support_info[self._right_support_joint_index] = [nan, 0, 0, 0, nan, nan]   
         
         # Material Information
         mat_info = [[self.E, self.v, self.top_chord_Fy, self.unit_weight],
@@ -519,7 +525,10 @@ class Joist:
                     'bottom_chord_' + self.material_name, 
                     'web_' + self.material_name]
 
-        # Save Joist        
+        # Save Joist     
+        if model_title is None:
+            model_title = self.joist_name
+               
         save_MASTAN2(model_title=model_title, 
                      node_info=node_info, 
                      elem_info=elem_info,
@@ -532,23 +541,26 @@ class Joist:
 
     # Plotting Functions
     def plot_joist(self):
-        node_coords = [i[0:2] for i in self.TopNodeInfo() + self.BotNodeInfo()]
+        self.build_joist_geometry()
         tc_x = self.top_chord_panel_point_x_coords()
         bc_x = self.bottom_chord_panel_point_x_coords()
         de = self.effective_depth()
 
-        # Plot top chord
+        # Plot chords
         plt.plot(tc_x, [0]*len(tc_x), 'k')
         plt.plot(bc_x, [-de]*len(bc_x), 'k')
-        for i in node_coords:
+        for i in self._joint_coords:
             plt.plot(i[0], i[1], 'ko')
 
         # Plot web members
-        for i in self.WebMemberIndexInfo():
-            plt.plot([node_coords[i[0]-1][0], node_coords[i[1]-1][0]], [node_coords[i[0]-1][1], node_coords[i[1]-1][1]], 'k')
-            plt.text((node_coords[i[0]-1][0]+node_coords[i[1]-1][0])/2, (node_coords[i[0]-1][1]+node_coords[i[1]-1][1])/2, 
-                     self.web_sections_all()[self.WebMemberIndexInfo().index(i)], fontsize=8, ha='center', va='center'
-            )
+        web_section_list = self.web_sections_all()
+        for i, joints in enumerate(self._web_connectivity):
+            ix = self._joint_coords[joints[0]-1][0]
+            iy = self._joint_coords[joints[0]-1][1]
+            jx = self._joint_coords[joints[1]-1][0]
+            jy = self._joint_coords[joints[1]-1][1]
+            plt.plot([ix, jx], [iy, jy], 'k')
+            plt.text((ix+jx)/2, (iy+jy)/2, web_section_list[i], fontsize=8, ha='center', va='center')
 
         plt.ylim([-self.depth*1.1, 0.5])
         plt.show()
