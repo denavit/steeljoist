@@ -320,15 +320,15 @@ class Joist:
         number_of_bottom_chord_joints = len(bc_x_coords)
         
         if self.support_location < self.top_chord_panel_lengths[0]:
-            left_support_joint_index = 1
+            left_support_joint_index = 2
             right_support_joint_index = number_of_top_chord_joints-1
             top_chord_panel_point_indicies = list(range(3,number_of_top_chord_joints-1))
         elif self.support_location == self.top_chord_panel_lengths[0]:
-            left_support_joint_index = 1
+            left_support_joint_index = 2
             right_support_joint_index = number_of_top_chord_joints-1
             top_chord_panel_point_indicies = list(range(2,number_of_top_chord_joints))
         elif self.support_location < self.top_chord_panel_lengths[0]+self.top_chord_panel_lengths[1]:
-            left_support_joint_index = 2
+            left_support_joint_index = 3
             right_support_joint_index = number_of_top_chord_joints-2            
             top_chord_panel_point_indicies = [i for i in range(2, number_of_top_chord_joints) if i not in (3, number_of_top_chord_joints - 2)]
         else: 
@@ -508,8 +508,8 @@ class Joist:
         num_nodes = len(node_info)
         support_info = np.zeros([num_nodes,6])
         support_info[:] = nan
-        support_info[self._left_support_joint_index] = [0, 0, 0, 0, nan, nan]
-        support_info[self._right_support_joint_index] = [nan, 0, 0, 0, nan, nan]   
+        support_info[self._left_support_joint_index-1] = [0, 0, 0, 0, nan, nan]
+        support_info[self._right_support_joint_index-1] = [nan, 0, 0, 0, nan, nan]   
         
         # Material Information
         mat_info = [[self.E, self.v, self.top_chord_Fy, self.unit_weight],
