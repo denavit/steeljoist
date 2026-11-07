@@ -52,6 +52,7 @@ class Joist:
         # Loads
         self.uniform_load           = attrs.get('uniform_load', 0)
         self.lateral_pressure       = attrs.get('lateral_pressure', 0)
+        self.axial_load               = attrs.get('axial_load', 0)     # Compression (+), applied at right support
         
         # Analysis Options
         self.neglect_self_weight    = attrs.get('neglect_self_weight', True)
@@ -540,7 +541,11 @@ class Joist:
         support_info = np.zeros([num_nodes,6])
         support_info[:] = nan
         support_info[self._left_support_joint_index-1] = [0, 0, 0, 0, nan, nan]
-        support_info[self._right_support_joint_index-1] = [nan, 0, 0, 0, nan, nan]   
+        support_info[self._right_support_joint_index-1] = [nan, 0, 0, 0, nan, nan]
+
+        # Nodal Loads
+        nload_info = np.zeros([num_nodes,6])
+        nload_info[self._right_support_joint_index-1][0] = -self.axial_load   
         
         # Material Information
         mat_info = [[self.E, self.v, self.top_chord_Fy, self.unit_weight],
@@ -563,7 +568,8 @@ class Joist:
         save_MASTAN2(model_title=model_title, 
                      node_info=node_info, 
                      elem_info=elem_info,
-                     support_info=support_info, 
+                     support_info=support_info,
+                     nload_info=nload_info, 
                      uniload_info=uniload_info, 
                      sect_info=sect_info,
                      sect_name=sect_name, 
