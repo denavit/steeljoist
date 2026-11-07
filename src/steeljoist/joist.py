@@ -39,7 +39,7 @@ class Joist:
             self._bottom_chord_Fy   = attrs.get('bottom_chord_Fy', None)
             self._web_Fy            = attrs.get('web_Fy', None)
             self.v                  = attrs.get('v', 0.3)
-            self.unit_weight        = attrs.get('unit_weight', 490/1728)
+            self.unit_weight        = attrs.get('unit_weight', 490/1728/1000)
         else:
             self.E                  = attrs['E']
             self.Fy                 = attrs['Fy']
@@ -144,6 +144,37 @@ class Joist:
     def effective_depth(self):
         return self.depth - self.top_chord.y_bar - self.bottom_chord.y_bar
 
+    # Centerline, members-only weight, excluding seats, clips, and weld metal
+    def total_weight(self):
+        self.build_joist_geometry()
+        W = 0
+
+        #Top Chord
+        for i in range(self._number_of_top_chord_joints - 1):
+            L = self._joint_coords[i+1][0] - self._joint_coords[i][0]
+            W += L * self.top_chord.A * self.unit_weight
+
+        #Bottom Chord
+        start = self._number_of_top_chord_joints
+        for i in range(start, start + self._number_of_bottom_chord_joints - 1):
+            L = self._joint_coords[i+1][0] - self._joint_coords[i][0]
+            W += L * self.bottom_chord.A * self.unit_weight
+
+        #Web Members
+        web_section_list = self.web_sections_all()
+        for i, web_joints in enumerate(self._web_connectivity):
+            ix = self._joint_coords[web_joints[0]-1][0]
+            iy = self._joint_coords[web_joints[0]-1][1]
+            jx = self._joint_coords[web_joints[1]-1][0]
+            jy = self._joint_coords[web_joints[1]-1][1]
+            L = sqrt((jx-ix)**2 + (jy-iy)**2)
+            W += L * self.sections[web_section_list[i]].A * self.unit_weight
+
+        return W
+
+    def weight_per_foot(self):
+        return self.total_weight() / (self.span/12)
+    
     # Attribut Parsing/Expanding Functions
     def top_chord_panel_point_x_coords(self,include_ends=True,include_supports=True):
         x_coords = [0]
