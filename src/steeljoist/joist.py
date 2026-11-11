@@ -52,7 +52,7 @@ class Joist:
         # Loads
         self.uniform_load           = attrs.get('uniform_load', 0)
         self.lateral_pressure       = attrs.get('lateral_pressure', 0)
-        self.axial_load               = attrs.get('axial_load', 0)     # Compression (+), applied at right support
+        self.axial_load               = attrs.get('axial_load', 0)     # Tension (+), applied at right support
         
         # Analysis Options
         self.neglect_self_weight    = attrs.get('neglect_self_weight', True)
@@ -540,7 +540,7 @@ class Joist:
 
         # Nodal Loads
         nload_info = np.zeros([num_nodes,6])
-        nload_info[self._right_support_joint_index-1][0] = -self.axial_load   
+        nload_info[self._right_support_joint_index-1][0] = self.axial_load   
         
         # Material Information
         mat_info = [[self.E, self.v, self.top_chord_Fy, self.unit_weight],
