@@ -39,7 +39,7 @@ class Joist:
             self._bottom_chord_Fy   = attrs.get('bottom_chord_Fy', None)
             self._web_Fy            = attrs.get('web_Fy', None)
             self.v                  = attrs.get('v', 0.3)
-            self.unit_weight        = attrs.get('unit_weight', 490/1728)
+            self.unit_weight        = attrs.get('unit_weight', 490/1728/1000)
         else:
             self.E                  = attrs['E']
             self.Fy                 = attrs['Fy']
@@ -52,6 +52,7 @@ class Joist:
         # Loads
         self.uniform_load           = attrs.get('uniform_load', 0)
         self.lateral_pressure       = attrs.get('lateral_pressure', 0)
+        self.axial_load               = attrs.get('axial_load', 0)     # Tension (+), applied at right support
         
         # Analysis Options
         self.neglect_self_weight    = attrs.get('neglect_self_weight', True)
@@ -143,6 +144,32 @@ class Joist:
     # Physical Joist Properties
     def effective_depth(self):
         return self.depth - self.top_chord.y_bar - self.bottom_chord.y_bar
+
+    # Centerline, members-only weight, excluding seats, clips, and weld metal
+    def total_weight(self):
+        self.build_joist_geometry()
+        W = 0
+
+        #Top Chord
+        L = self._joint_coords[self._number_of_top_chord_joints - 1][0] - self._joint_coords[0][0]
+        W += L * self.top_chord.A * self.unit_weight
+
+        #Bottom Chord
+        start = self._number_of_top_chord_joints
+        L = self._joint_coords[start+self._number_of_bottom_chord_joints -1][0] - self._joint_coords[start][0]
+        W += L * self.bottom_chord.A * self.unit_weight
+
+        #Web Members
+        web_section_list = self.web_sections_all()
+        for i, web_joints in enumerate(self._web_connectivity):
+            ix = self._joint_coords[web_joints[0]-1][0]
+            iy = self._joint_coords[web_joints[0]-1][1]
+            jx = self._joint_coords[web_joints[1]-1][0]
+            jy = self._joint_coords[web_joints[1]-1][1]
+            L = sqrt((jx-ix)**2 + (jy-iy)**2)
+            W += L * self.sections[web_section_list[i]].A * self.unit_weight
+
+        return W
 
     # Attribut Parsing/Expanding Functions
     def top_chord_panel_point_x_coords(self,include_ends=True,include_supports=True):
@@ -320,15 +347,15 @@ class Joist:
         number_of_bottom_chord_joints = len(bc_x_coords)
         
         if self.support_location < self.top_chord_panel_lengths[0]:
-            left_support_joint_index = 1
+            left_support_joint_index = 2
             right_support_joint_index = number_of_top_chord_joints-1
             top_chord_panel_point_indicies = list(range(3,number_of_top_chord_joints-1))
         elif self.support_location == self.top_chord_panel_lengths[0]:
-            left_support_joint_index = 1
+            left_support_joint_index = 2
             right_support_joint_index = number_of_top_chord_joints-1
             top_chord_panel_point_indicies = list(range(2,number_of_top_chord_joints))
         elif self.support_location < self.top_chord_panel_lengths[0]+self.top_chord_panel_lengths[1]:
-            left_support_joint_index = 2
+            left_support_joint_index = 3
             right_support_joint_index = number_of_top_chord_joints-2            
             top_chord_panel_point_indicies = [i for i in range(2, number_of_top_chord_joints) if i not in (3, number_of_top_chord_joints - 2)]
         else: 
@@ -508,8 +535,12 @@ class Joist:
         num_nodes = len(node_info)
         support_info = np.zeros([num_nodes,6])
         support_info[:] = nan
-        support_info[self._left_support_joint_index] = [0, 0, 0, 0, nan, nan]
-        support_info[self._right_support_joint_index] = [nan, 0, 0, 0, nan, nan]   
+        support_info[self._left_support_joint_index-1] = [0, 0, 0, 0, nan, nan]
+        support_info[self._right_support_joint_index-1] = [nan, 0, 0, 0, nan, nan]
+
+        # Nodal Loads
+        nload_info = np.zeros([num_nodes,6])
+        nload_info[self._right_support_joint_index-1][0] = self.axial_load   
         
         # Material Information
         mat_info = [[self.E, self.v, self.top_chord_Fy, self.unit_weight],
@@ -532,7 +563,8 @@ class Joist:
         save_MASTAN2(model_title=model_title, 
                      node_info=node_info, 
                      elem_info=elem_info,
-                     support_info=support_info, 
+                     support_info=support_info,
+                     nload_info=nload_info, 
                      uniload_info=uniload_info, 
                      sect_info=sect_info,
                      sect_name=sect_name, 
