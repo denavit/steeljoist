@@ -150,15 +150,13 @@ class Joist:
         W = 0
 
         #Top Chord
-        for i in range(self._number_of_top_chord_joints - 1):
-            L = self._joint_coords[i+1][0] - self._joint_coords[i][0]
-            W += L * self.top_chord.A * self.unit_weight
+        L = self._joint_coords[self._number_of_top_chord_joints - 1][0] - self._joint_coords[0][0]
+        W += L * self.top_chord.A * self.unit_weight
 
         #Bottom Chord
         start = self._number_of_top_chord_joints
-        for i in range(start, start + self._number_of_bottom_chord_joints - 1):
-            L = self._joint_coords[i+1][0] - self._joint_coords[i][0]
-            W += L * self.bottom_chord.A * self.unit_weight
+        L = self._joint_coords[start+self._number_of_bottom_chord_joints -1][0] - self._joint_coords[start][0]
+        W += L * self.bottom_chord.A * self.unit_weight
 
         #Web Members
         web_section_list = self.web_sections_all()
@@ -172,9 +170,6 @@ class Joist:
 
         return W
 
-    def weight_per_foot(self):
-        return self.total_weight() / (self.span/12)
-    
     # Attribut Parsing/Expanding Functions
     def top_chord_panel_point_x_coords(self,include_ends=True,include_supports=True):
         x_coords = [0]
