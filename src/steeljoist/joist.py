@@ -57,6 +57,8 @@ class Joist:
         # Analysis Options
         self.neglect_self_weight    = attrs.get('neglect_self_weight', True)
         self.pin_web_members        = attrs.get('pin_web_members', False)
+        self.support_at_seat        = attrs.get('support_at_seat', False)
+        self.seat_depth             = attrs.get('seat_depth', None)
         self.model_chords_as_double_angles = attrs.get('model_chords_as_double_angles', False) # @todo
         self.bottom_chord_extension_length = attrs.get('bottom_chord_extension_length', 0)
         self.maximum_element_length = attrs.get('maximum_element_length', None)
@@ -531,16 +533,35 @@ class Joist:
                     
                     i_node = j_node 
 
+        # Seat Nodes and Rigid Links
+        left_support_node = self._left_support_joint_index
+        right_support_node = self._right_support_joint_index
+        if self.support_at_seat:
+            if self.seat_depth is None:
+                raise ValueError('Seat depth must be defined if support_at_seat is True')
+            y_seat = self.top_chord.y_bar - self.seat_depth
+            sect_info.append([100, 1000, 1000, 1000, 0, 1000, 1000, 100, 100, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0])
+            sect_name.append('rigid_link')
+            section_index = len(sect_name)
+            for joint in [left_support_node, right_support_node]:
+                x = self._joint_coords[joint-1][0]
+                node_info.append([x, y_seat, 0])
+                seat_node = len(node_info)
+                elem_info.append([joint, seat_node, section_index, 4, 0, 0, 0, 0, 0, inf, inf, inf, inf, inf, inf, inf, inf])
+                uniload_info.append([0, 0, 0])
+            left_support_node = len(node_info) - 1
+            right_support_node = len(node_info)
+
         # Support Information
         num_nodes = len(node_info)
         support_info = np.zeros([num_nodes,6])
         support_info[:] = nan
-        support_info[self._left_support_joint_index-1] = [0, 0, 0, 0, nan, nan]
-        support_info[self._right_support_joint_index-1] = [nan, 0, 0, 0, nan, nan]
+        support_info[left_support_node-1] = [0, 0, 0, 0, nan, nan]
+        support_info[right_support_node-1] = [nan, 0, 0, 0, nan, nan]
 
         # Nodal Loads
         nload_info = np.zeros([num_nodes,6])
-        nload_info[self._right_support_joint_index-1][0] = self.axial_load   
+        nload_info[right_support_node-1][0] = self.axial_load   
         
         # Material Information
         mat_info = [[self.E, self.v, self.top_chord_Fy, self.unit_weight],
@@ -555,6 +576,11 @@ class Joist:
         mat_name = ['top_chord_' + self.material_name, 
                     'bottom_chord_' + self.material_name, 
                     'web_' + self.material_name]
+        
+        if self.support_at_seat:
+            #Zero-weight material for the rigid seat links
+            mat_info.append([self.E, self.v, self.Fy, 0])
+            mat_name.append('rigid_link')
 
         # Save Joist     
         if model_title is None:
