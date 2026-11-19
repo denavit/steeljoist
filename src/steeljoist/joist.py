@@ -490,7 +490,7 @@ class Joist:
             jx = self._joint_coords[web_joints[1]-1][0]
             jy = self._joint_coords[web_joints[1]-1][1]
             
-            if ix > jx:
+            if ix >= jx:
                 beta = pi
             else:
                 beta = 0
