@@ -171,7 +171,33 @@ class Joist:
 
         return W
 
-    # Attribut Parsing/Expanding Functions
+    # Projected lateral area of members (in-plane depth x centerline length)
+    def lateral_projected_area(self):
+        self.build_joist_geometry()
+        A = 0
+    
+        #Top Chord
+        L = self._joint_coords[self._number_of_top_chord_joints - 1][0] - self._joint_coords[0][0]
+        A += L * self.top_chord.in_plane_depth()
+    
+        #Bottom Chord
+        start = self._number_of_top_chord_joints
+        L = self._joint_coords[start+self._number_of_bottom_chord_joints -1][0] - self._joint_coords[start][0]
+        A += L * self.bottom_chord.in_plane_depth()
+    
+        #Web Members
+        web_section_list = self.web_sections_all()
+        for i, web_joints in enumerate(self._web_connectivity):
+            ix = self._joint_coords[web_joints[0]-1][0]
+            iy = self._joint_coords[web_joints[0]-1][1]
+            jx = self._joint_coords[web_joints[1]-1][0]
+            jy = self._joint_coords[web_joints[1]-1][1]
+            L = sqrt((jx-ix)**2 + (jy-iy)**2)
+            A += L * self.sections[web_section_list[i]].in_plane_depth()
+    
+        return A
+    
+    # Attribute Parsing/Expanding Functions
     def top_chord_panel_point_x_coords(self,include_ends=True,include_supports=True):
         x_coords = [0]
         if sum(self.top_chord_panel_lengths) == self.span:
