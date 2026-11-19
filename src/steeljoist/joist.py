@@ -23,6 +23,7 @@ class Joist:
             self.support_location   = attrs['support_location']
         self.top_chord_extension_length_left = attrs.get('top_chord_extension_length_left', 0)
         self.top_chord_extension_length_right = attrs.get('top_chord_extension_length_right', 0)
+        self.seat_depth = attrs.get('seat_depth', None)
         
         # Member information
         self.sections               = attrs['sections']  # Dictionary of sections
@@ -58,7 +59,7 @@ class Joist:
         self.neglect_self_weight    = attrs.get('neglect_self_weight', True)
         self.pin_web_members        = attrs.get('pin_web_members', False)
         self.support_at_seat        = attrs.get('support_at_seat', False)
-        self.seat_depth             = attrs.get('seat_depth', None)
+        self.rigid_link_factor             = attrs.get('rigid_link_factor', 1000)
         self.model_chords_as_double_angles = attrs.get('model_chords_as_double_angles', False) # @todo
         self.bottom_chord_extension_length = attrs.get('bottom_chord_extension_length', 0)
         self.maximum_element_length = attrs.get('maximum_element_length', None)
@@ -540,7 +541,12 @@ class Joist:
             if self.seat_depth is None:
                 raise ValueError('Seat depth must be defined if support_at_seat is True')
             y_seat = self.top_chord.y_bar - self.seat_depth
-            sect_info.append([100, 1000, 1000, 1000, 0, 1000, 1000, 100, 100, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0])
+
+            # Rigid link section: top chord properties (columns 1-9) times rigid_link_factor
+            link_sect_info = self.top_chord.MASTAN2_sect_info()
+            for k in range(9):
+                link_sect_info[k] *= self.rigid_link_factor
+            sect_info.append(link_sect_info)
             sect_name.append('rigid_link')
             section_index = len(sect_name)
             for joint in [left_support_node, right_support_node]:
@@ -579,8 +585,8 @@ class Joist:
         
         if self.support_at_seat:
             #Zero-weight material for the rigid seat links
-            mat_info.append([self.E, self.v, self.Fy, 0])
-            mat_name.append('rigid_link')
+            mat_info.append([self.E, self.v, inf, 0])
+            mat_name.append('rigid')
 
         # Save Joist     
         if model_title is None:
