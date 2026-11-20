@@ -57,6 +57,7 @@ class Joist:
         # Analysis Options
         self.neglect_self_weight    = attrs.get('neglect_self_weight', True)
         self.pin_web_members        = attrs.get('pin_web_members', False)
+        self.lateral_load_as_nodal = attrs.get('lateral_load_as_nodal', False)
         self.model_chords_as_double_angles = attrs.get('model_chords_as_double_angles', False) # @todo
         self.bottom_chord_extension_length = attrs.get('bottom_chord_extension_length', 0)
         self.maximum_element_length = attrs.get('maximum_element_length', None)
@@ -567,6 +568,16 @@ class Joist:
         # Nodal Loads
         nload_info = np.zeros([num_nodes,6])
         nload_info[self._right_support_joint_index-1][0] = self.axial_load   
+
+        # Lateral load as global nodal loads (half of each element's load to each end node)
+        if self.lateral_load_as_nodal:
+            for elem, uniload in zip(elem_info, uniload_info):
+                xi, yi, zi = node_info[elem[0]-1]
+                xj, yj, zj = node_info[elem[1]-1]
+                L = sqrt((xj-xi)**2 + (yj-yi)**2 + (zj-zi)**2)
+                nload_info[elem[0]-1][2] += uniload[2]*L/2
+                nload_info[elem[1]-1][2] += uniload[2]*L/2
+                uniload[2] = 0
         
         # Material Information
         mat_info = [[self.E, self.v, self.top_chord_Fy, self.unit_weight],
